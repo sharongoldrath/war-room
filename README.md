@@ -2,24 +2,34 @@
 
 Live situational map for Israel and the Middle East, built on public open data. Next.js 14 (App Router) + MapLibre GL, deployable on Vercel with zero required keys.
 
-## What works now (v1)
+## What it does (v2)
 
-| Layer | Source | Key needed | Refresh |
+**Cross-referenced intelligence feed.** ~30 sources in Hebrew, English and Arabic (Israeli outlets, Western, Arab, Iranian state + opposition, and Google News searches that surface hundreds of outlets) are fetched independently, then:
+
+1. **Validate** — items older than 48h are dropped (some feeds serve year-old entries); failed or stale sources are listed in the *מקורות* tab, never silently replaced.
+2. **Normalize & dedupe** — same link or same outlet+title is kept once.
+3. **Geolocate** — trilingual gazetteer (~90 places, demonyms included). Country-level mentions are used for clustering but never pinned.
+4. **Cluster into stories** — reports about the same event are grouped across languages using shared places, actors (Hamas/חמאס/حماس…) and event types (strike/תקיפה/غارة…) inside a 6h window.
+5. **Score** — *independent sources* counts distinct outlets after collapsing near-identical (syndicated) copies. Verification: `multi` (2+ independent), `single`, `unverified` (single report phrased as a claim, or Telegram-only). Severity is a keyword-based estimate, labelled as such.
+6. **Perspective view** — each story shows what Israeli, Western, Arab and Iranian outlets reported, side by side.
+
+**Zone pulse** — security stories per arena (Gaza, Lebanon, Iran, Yemen…) over 24h with hourly sparklines. **What changed** — stories that appeared since your last visit are marked *חדש*.
+
+| Layer | Source | Key | Refresh |
 |---|---|---|---|
-| Civil aviation (+ emergency squawks 7500/7600/7700) | [adsb.lol](https://api.adsb.lol/docs) open API, 10 tiles × 250nm across the region | none | 15s |
-| Headlines on the map | RSS: ynet, Maariv, Times of Israel, JPost, BBC ME, Al Jazeera — geotagged by place name in title | none | 90s |
-| News-coverage hotspots | [GDELT GEO 2.0](https://blog.gdeltproject.org/gdelt-geo-2-0-api-debuts/) (media mentions, not verified events) | none | 10m |
-| Earthquakes | USGS M2.5+ / 24h | none | 5m |
-| Storms, volcanoes, wildfires | NASA EONET v3 | none | 5m |
-| Thermal anomalies (fires) | NASA FIRMS VIIRS | `FIRMS_MAP_KEY` (free) | 5m |
+| Cross-referenced stories | RSS + Google News RSS | none | 2m |
+| Home Front Command alerts | oref.org.il (geo-restricted to Israel) → fallback tzevaadom from the browser | none | 20s |
+| GPS interference | gpsjam.org daily H3 data | none | daily |
+| Internet outages | IODA (Georgia Tech) | none | 10m |
+| Civil aviation (+ emergency squawks) | adsb.lol | none | 15s |
+| Earthquakes / natural events / fires | USGS / NASA EONET / NASA FIRMS | FIRMS_MAP_KEY | 5m |
 | Rain radar | RainViewer | none | 10m |
-| Space stations + ISS ground track, GPS constellation | CelesTrak TLE, propagated in-browser (satellite.js) | none | 2s |
-| Commercial shipping | aisstream.io (short server-side snapshot) | `AISSTREAM_KEY` (free) | 60s |
-| Day/night terminator | computed | none | 1m |
+| ISS + GPS constellation | CelesTrak | none | 2s |
+| Commercial shipping | aisstream.io | AISSTREAM_KEY | 60s |
 
-Each layer loads independently; a failing source never breaks the map. Military aircraft and military satellites are deliberately excluded (see project spec, §5).
+Military aircraft, military satellites and military vessels are deliberately excluded.
 
-**Honesty notes:** headline pins are placed by matching a place name in the text — they show *where a story is about*, not a verified incident location. GDELT circles measure media attention, not events.
+**Optional Telegram:** set `TELEGRAM_CHANNELS=channel_a,channel_b` (public channels). Telegram-only stories are always marked unverified.
 
 ## Run locally
 
@@ -34,20 +44,23 @@ npm run dev   # http://localhost:3000
 2. Optional, Settings → Environment Variables:
    - `FIRMS_MAP_KEY` — free at https://firms.modaps.eosdis.nasa.gov/api/map_key/
    - `AISSTREAM_KEY` — free at https://aisstream.io (sign in with GitHub → API Keys)
+   - `TELEGRAM_CHANNELS` — comma-separated public channel usernames
 3. Redeploy after adding keys.
 
 ## Structure
 
 ```
-app/api/flights    adsb.lol tiles → deduped GeoJSON
-app/api/feed       RSS aggregation + gazetteer geotagging
-app/api/news-geo   GDELT GEO proxy
-app/api/hazards    USGS + EONET + FIRMS
-app/api/tle        CelesTrak TLE groups
-app/api/ships      aisstream snapshot
-components/WarRoom.tsx   map, layer panel, feed, ticker
-lib/geo.ts         terminator, satellite propagation, helpers
-lib/gazetteer.ts   Hebrew/English place names → coordinates
+app/api/feed      sources → validate → dedupe → geolocate → cluster → score
+app/api/alerts    Home Front Command alerts (oref / tzevaadom)
+app/api/gpsjam    GPS interference cells (H3)
+app/api/outages   IODA per-country outage summary
+app/api/flights · hazards · tle · ships
+lib/sources.ts    source registry + outlet → camp mapping
+lib/gazetteer.ts  trilingual places + word-boundary matcher
+lib/nlp.ts        actors, event concepts, category, severity
+lib/cluster.ts    story clustering, syndication collapse, zone pulse
+lib/mapLayers.ts  map layer definitions
+components/       WarRoom (map), StoryFeed, PulseStrip
 ```
 
 ## Roadmap (from the full WAR ROOM spec)

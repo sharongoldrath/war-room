@@ -74,14 +74,3 @@ export function groundTrack(rec: sat.SatRec, minutes = 95, from = new Date()) {
   }
   return { type: 'Feature' as const, geometry: { type: 'MultiLineString' as const, coordinates: lines }, properties: {} };
 }
-
-export const esc = (s: unknown) =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
-export function ago(t: number) {
-  const s = Math.max(0, (Date.now() - t) / 1000);
-  if (s < 60) return 'עכשיו';
-  if (s < 3600) return `לפני ${Math.floor(s / 60)} דק׳`;
-  if (s < 86400) return `לפני ${Math.floor(s / 3600)} שע׳`;
-  return `לפני ${Math.floor(s / 86400)} ימים`;
-}
